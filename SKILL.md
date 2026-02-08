@@ -207,8 +207,8 @@ node ./scripts/tandoor.js get-units              # all units
 **"Food not found" or "Unit not found"**  
 Search for the correct name in Tandoor first:
 ```bash
-node ./scripts/build/tandoor.js get-foods "chicken"
-node ./scripts/build/tandoor.js get-units "gram"
+node ./scripts/tandoor.js get-foods "chicken"
+node ./scripts/tandoor.js get-units "gram"
 ```
 
 **"Meal type not found"**  
