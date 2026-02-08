@@ -16,7 +16,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: develop
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -30,17 +29,8 @@ jobs:
         working-directory: ./scripts
         run: npm run build
 
-      - name: Prepare release branch
+      - name: Prepare production files
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Create branch name from commit message
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          BRANCH_SLUG=$(echo "$COMMIT_MSG" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-50)
-          BRANCH_NAME="release/${BRANCH_SLUG}"
-          git checkout -b "$BRANCH_NAME"
-          
           # Remove source files, keep only build artifacts
           rm -rf scripts/src scripts/node_modules scripts/tsconfig.json scripts/package-lock.json
           rm -rf .github README.md
@@ -51,25 +41,21 @@ jobs:
           
           # Update paths in SKILL.md
           sed -i 's|./scripts/build/|./scripts/|g' SKILL.md
-          
-          # Commit changes
-          git add -A
-          git commit -m "build: production artifacts from develop (${{ github.sha }})"
-          git push origin "$BRANCH_NAME"
-          
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Create Pull Request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr create \
-            --base main \
-            --head "$BRANCH_NAME" \
-            --title "build: update from develop" \
-            --body "Automated build from develop branch.
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/${{ github.sha }}
+          base: main
+          title: "build: update from develop"
+          body: |
+            Automated build from develop branch.
 
-          **Commit:** ${{ github.sha }}
-          **Triggered by:** ${{ github.actor }}
+            **Commit:** ${{ github.sha }}
+            **Message:** ${{ github.event.head_commit.message }}
+            **Triggered by:** ${{ github.actor }}
 
-          This PR contains only production build artifacts (no source code)."
+            This PR contains only production build artifacts (no source code).
+          commit-message: "build: production artifacts from ${{ github.sha }}"
+          delete-branch: true
