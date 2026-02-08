@@ -1,0 +1,56 @@
+name: Build and Deploy to Main
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./scripts
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: ./scripts
+        run: npm run build
+
+      - name: Deploy to main branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Switch to main (or create orphan if doesn't exist)
+          git checkout main 2>/dev/null || git checkout --orphan main
+          
+          # Remove everything except what we want to keep
+          git rm -rf . 2>/dev/null || true
+          
+          # Checkout files from develop
+          git checkout develop -- SKILL.md references/
+          
+          # Copy built files (not the src)
+          mkdir -p scripts
+          cp scripts/build/*.js scripts/
+          cp scripts/build/*.d.ts scripts/
+          cp scripts/build/*.map scripts/
+          git checkout develop -- scripts/package.json
+          
+          # Update paths in SKILL.md
+          sed -i 's|./scripts/build/|./scripts/|g' SKILL.md
+          
+          # Commit and push
+          git add -A
+          git commit -m "build: update from develop (${{ github.sha }})" || echo "No changes"
+          git push origin main --force

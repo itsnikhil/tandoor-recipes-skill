@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Build output (gitignored locally, CI publishes to main)
 build/
 
 # IDE
@@ -14,4 +14,6 @@ build/
 
 # Logs
 *.log
+
+# Environment
 .env
