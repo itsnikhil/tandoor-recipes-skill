@@ -29,31 +29,35 @@ jobs:
         working-directory: ./scripts
         run: npm run build
 
+      - name: Prepare artifacts
+        run: |
+          # Save built files to temp location
+          mkdir -p /tmp/deploy/scripts
+          mkdir -p /tmp/deploy/references
+          
+          cp SKILL.md /tmp/deploy/
+          cp -r references/* /tmp/deploy/references/
+          cp scripts/build/*.js /tmp/deploy/scripts/
+          cp scripts/build/*.d.ts /tmp/deploy/scripts/
+          cp scripts/build/*.map /tmp/deploy/scripts/
+          cp scripts/package.json /tmp/deploy/scripts/
+          
+          # Update paths in SKILL.md
+          sed -i 's|./scripts/build/|./scripts/|g' /tmp/deploy/SKILL.md
+
       - name: Deploy to main branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Switch to main (or create orphan if doesn't exist)
-          git checkout main 2>/dev/null || git checkout --orphan main
+          # Create fresh orphan main branch
+          git checkout --orphan temp-main
+          git rm -rf .
           
-          # Remove everything except what we want to keep
-          git rm -rf . 2>/dev/null || true
+          # Copy prepared artifacts
+          cp -r /tmp/deploy/* .
           
-          # Checkout files from develop
-          git checkout develop -- SKILL.md references/
-          
-          # Copy built files (not the src)
-          mkdir -p scripts
-          cp scripts/build/*.js scripts/
-          cp scripts/build/*.d.ts scripts/
-          cp scripts/build/*.map scripts/
-          git checkout develop -- scripts/package.json
-          
-          # Update paths in SKILL.md
-          sed -i 's|./scripts/build/|./scripts/|g' SKILL.md
-          
-          # Commit and push
+          # Commit and force push
           git add -A
-          git commit -m "build: update from develop (${{ github.sha }})" || echo "No changes"
-          git push origin main --force
+          git commit -m "build: update from develop (${{ github.sha }})"
+          git push origin temp-main:main --force
