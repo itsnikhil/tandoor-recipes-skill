@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: develop
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -29,36 +30,51 @@ jobs:
         working-directory: ./scripts
         run: npm run build
 
-      - name: Prepare production files
+      - name: Prepare and push release branch
+        id: prepare
         run: |
-          # Remove source files, keep only build artifacts
-          rm -rf scripts/src scripts/node_modules scripts/tsconfig.json scripts/package-lock.json
-          rm -rf .github README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Move built files to scripts root
-          mv scripts/build/* scripts/
+          # Create branch name from short SHA
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          BRANCH_NAME="release/${SHORT_SHA}"
+          echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          
+          # Checkout main as base for the release branch
+          git fetch origin main
+          git checkout -b "$BRANCH_NAME" origin/main
+          
+          # Checkout production files from develop
+          git checkout develop -- SKILL.md references/ scripts/package.json
+          
+          # Copy built JS files (not src or maps)
+          mkdir -p scripts
+          git checkout develop -- scripts/build
+          mv scripts/build/*.js scripts/
+          mv scripts/build/*.d.ts scripts/
           rm -rf scripts/build
-          
-          # Remove source maps (not needed in production)
-          rm -f scripts/*.map
           
           # Update paths in SKILL.md
           sed -i 's|./scripts/build/|./scripts/|g' SKILL.md
+          
+          # Commit and push
+          git add -A
+          git commit -m "build: production artifacts from ${{ github.sha }}"
+          git push origin "$BRANCH_NAME"
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: release/${{ github.sha }}
-          base: main
-          title: "build: update from develop"
-          body: |
-            Automated build from develop branch.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.prepare.outputs.branch_name }}" \
+            --title "build: update from develop" \
+            --body "Automated build from develop branch.
 
-            **Commit:** ${{ github.sha }}
-            **Message:** ${{ github.event.head_commit.message }}
-            **Triggered by:** ${{ github.actor }}
+          **Commit:** ${{ github.sha }}
+          **Message:** ${{ github.event.head_commit.message }}
+          **Triggered by:** ${{ github.actor }}
 
-            This PR contains only production build artifacts (no source code).
-          commit-message: "build: production artifacts from ${{ github.sha }}"
-          delete-branch: true
+          This PR contains only production build artifacts (no source code)."
