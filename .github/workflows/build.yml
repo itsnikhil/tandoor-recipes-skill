@@ -30,6 +30,19 @@ jobs:
         working-directory: ./scripts
         run: npm run build
 
+      - name: Save build artifacts
+        run: |
+          # Save everything we need to temp location
+          mkdir -p /tmp/artifacts/scripts
+          cp SKILL.md /tmp/artifacts/
+          cp -r references /tmp/artifacts/
+          cp scripts/package.json /tmp/artifacts/scripts/
+          cp scripts/build/*.js /tmp/artifacts/scripts/
+          cp scripts/build/*.d.ts /tmp/artifacts/scripts/
+          
+          # Update paths in SKILL.md
+          sed -i 's|./scripts/build/|./scripts/|g' /tmp/artifacts/SKILL.md
+
       - name: Prepare and push release branch
         id: prepare
         run: |
@@ -45,18 +58,9 @@ jobs:
           git fetch origin main
           git checkout -b "$BRANCH_NAME" origin/main
           
-          # Checkout production files from develop
-          git checkout develop -- SKILL.md references/ scripts/package.json
-          
-          # Copy built JS files (not src or maps)
-          mkdir -p scripts
-          git checkout develop -- scripts/build
-          mv scripts/build/*.js scripts/
-          mv scripts/build/*.d.ts scripts/
-          rm -rf scripts/build
-          
-          # Update paths in SKILL.md
-          sed -i 's|./scripts/build/|./scripts/|g' SKILL.md
+          # Remove existing files and copy artifacts
+          rm -rf SKILL.md references scripts
+          cp -r /tmp/artifacts/* .
           
           # Commit and push
           git add -A
