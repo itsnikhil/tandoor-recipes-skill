@@ -39,6 +39,9 @@ jobs:
           mv scripts/build/* scripts/
           rm -rf scripts/build
           
+          # Remove source maps (not needed in production)
+          rm -f scripts/*.map
+          
           # Update paths in SKILL.md
           sed -i 's|./scripts/build/|./scripts/|g' SKILL.md
 
