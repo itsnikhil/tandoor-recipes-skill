@@ -35,8 +35,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Create release branch
-          BRANCH_NAME="release/build-$(date +%Y%m%d-%H%M%S)"
+          # Create branch name from commit message
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          BRANCH_SLUG=$(echo "$COMMIT_MSG" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-50)
+          BRANCH_NAME="release/${BRANCH_SLUG}"
           git checkout -b "$BRANCH_NAME"
           
           # Remove source files, keep only build artifacts
