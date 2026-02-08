@@ -1,4 +1,4 @@
-name: Build and Deploy to Main
+name: Build and Create PR to Main
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -29,35 +30,44 @@ jobs:
         working-directory: ./scripts
         run: npm run build
 
-      - name: Prepare artifacts
-        run: |
-          # Save built files to temp location
-          mkdir -p /tmp/deploy/scripts
-          mkdir -p /tmp/deploy/references
-          
-          cp SKILL.md /tmp/deploy/
-          cp -r references/* /tmp/deploy/references/
-          cp scripts/build/*.js /tmp/deploy/scripts/
-          cp scripts/build/*.d.ts /tmp/deploy/scripts/
-          cp scripts/build/*.map /tmp/deploy/scripts/
-          cp scripts/package.json /tmp/deploy/scripts/
-          
-          # Update paths in SKILL.md
-          sed -i 's|./scripts/build/|./scripts/|g' /tmp/deploy/SKILL.md
-
-      - name: Deploy to main branch
+      - name: Prepare release branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Create fresh orphan main branch
-          git checkout --orphan temp-main
-          git rm -rf .
+          # Create release branch
+          BRANCH_NAME="release/build-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH_NAME"
           
-          # Copy prepared artifacts
-          cp -r /tmp/deploy/* .
+          # Remove source files, keep only build artifacts
+          rm -rf scripts/src scripts/node_modules scripts/tsconfig.json scripts/package-lock.json
+          rm -rf .github README.md
           
-          # Commit and force push
+          # Move built files to scripts root
+          mv scripts/build/* scripts/
+          rm -rf scripts/build
+          
+          # Update paths in SKILL.md
+          sed -i 's|./scripts/build/|./scripts/|g' SKILL.md
+          
+          # Commit changes
           git add -A
-          git commit -m "build: update from develop (${{ github.sha }})"
-          git push origin temp-main:main --force
+          git commit -m "build: production artifacts from develop (${{ github.sha }})"
+          git push origin "$BRANCH_NAME"
+          
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "build: update from develop" \
+            --body "Automated build from develop branch.
+
+          **Commit:** ${{ github.sha }}
+          **Triggered by:** ${{ github.actor }}
+
+          This PR contains only production build artifacts (no source code)."
